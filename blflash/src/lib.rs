@@ -11,7 +11,7 @@ pub use flasher::Flasher;
 use crate::{
     chip::{
         bl602::{self, Bl602},
-        Chip,
+        Chip, ChipName,
     },
     elf::{FirmwareImage, RomSegment},
     image::BootHeaderCfgFile,
@@ -41,6 +41,9 @@ pub struct Connection {
     /// boot pin
     #[structopt(long, default_value = "!dtr")]
     pub boot_pin: String,
+    /// chip type
+    #[structopt(long, parse(try_from_str), default_value = "bl602")]
+    pub chip: ChipType,
 }
 
 #[derive(StructOpt)]
