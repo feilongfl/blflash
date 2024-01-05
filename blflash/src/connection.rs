@@ -3,6 +3,7 @@
 use crate::{Error, RomError};
 use byteorder::{ByteOrder, LittleEndian, ReadBytesExt, WriteBytesExt};
 use deku::prelude::*;
+use std::convert::TryFrom;
 use std::io::{Cursor, Read, Write};
 use std::thread::sleep;
 use std::time::Duration;
@@ -145,7 +146,9 @@ impl Connection {
                 let code = self.read_exact(2)?;
                 let mut reader = Cursor::new(code);
                 let code = reader.read_u16::<LittleEndian>()?;
-                Err(Error::RomError(RomError::from(code)))
+                Err(Error::RomError(
+                    RomError::try_from(code).unwrap_or(RomError::Unknow),
+                ))
             }
             e => {
                 log::trace!("read_response err: {:x?}", e);
