@@ -33,9 +33,11 @@ impl Flasher {
         serial: impl SerialPort + 'static,
         initial_speed: BaudRate,
         flash_speed: BaudRate,
+        reset_pin: String,
+        boot_pin: String,
     ) -> Result<Self, Error> {
         let mut flasher = Flasher {
-            connection: Connection::new(serial),
+            connection: Connection::new(serial, reset_pin, boot_pin),
             boot_info: protocol::BootInfo::default(),
             chip: Box::new(chip),
             flash_speed,

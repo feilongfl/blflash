@@ -62,13 +62,17 @@ pub trait Command: DekuContainerWrite {
 pub struct Connection {
     serial: Box<dyn SerialPort>,
     baud_rate: Option<BaudRate>,
+    reset_pin: String,
+    boot_pin: String,
 }
 
 impl Connection {
-    pub fn new(serial: impl SerialPort + 'static) -> Self {
+    pub fn new(serial: impl SerialPort + 'static, reset_pin: String, boot_pin: String) -> Self {
         Connection {
             serial: Box::new(serial),
             baud_rate: None,
+            reset_pin,
+            boot_pin,
         }
     }
 
@@ -76,26 +80,46 @@ impl Connection {
         self.serial
     }
 
+    fn set_pin(&mut self, pin: String, level: bool) -> Result<(), Error> {
+        let level = if pin.starts_with('!') { !level } else { level };
+        match pin.trim_start_matches('!') {
+            "rts" => {
+                self.serial.set_rts(level)?;
+            }
+            "dtr" => {
+                self.serial.set_dtr(level)?;
+            }
+            "null" => {
+                // do nothing
+            }
+            _ => return Err(Error::ArgsError),
+        }
+
+        sleep(Duration::from_millis(10));
+        Ok(())
+    }
+
+    fn set_reset_pin(&mut self, level: bool) -> Result<(), Error> {
+        self.set_pin(self.reset_pin.clone(), level)
+    }
+
+    fn set_boot_pin(&mut self, level: bool) -> Result<(), Error> {
+        self.set_pin(self.boot_pin.clone(), level)
+    }
+
     pub fn reset(&mut self) -> Result<(), Error> {
-        self.serial.set_rts(false)?;
-        sleep(Duration::from_millis(50));
-        self.serial.set_dtr(true)?;
-        sleep(Duration::from_millis(50));
-        self.serial.set_dtr(false)?;
-        sleep(Duration::from_millis(50));
+        self.set_boot_pin(false)?;
+        self.set_reset_pin(true)?;
+        self.set_reset_pin(false)?;
 
         Ok(())
     }
 
     pub fn reset_to_flash(&mut self) -> Result<(), Error> {
-        self.serial.set_rts(true)?;
-        sleep(Duration::from_millis(50));
-        self.serial.set_dtr(true)?;
-        sleep(Duration::from_millis(50));
-        self.serial.set_dtr(false)?;
-        sleep(Duration::from_millis(50));
-        self.serial.set_rts(false)?;
-        sleep(Duration::from_millis(50));
+        self.set_boot_pin(true)?;
+        self.set_reset_pin(true)?;
+        self.set_reset_pin(false)?;
+        self.set_boot_pin(false)?;
 
         Ok(())
     }

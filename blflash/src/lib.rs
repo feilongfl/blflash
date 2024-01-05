@@ -35,6 +35,12 @@ pub struct Connection {
     /// Initial baud rate
     #[structopt(long, default_value = "115200")]
     pub initial_baud_rate: usize,
+    /// Reset pin
+    #[structopt(long, default_value = "rts")]
+    pub reset_pin: String,
+    /// boot pin
+    #[structopt(long, default_value = "!dtr")]
+    pub boot_pin: String,
 }
 
 #[derive(StructOpt)]
@@ -94,6 +100,15 @@ pub struct DumpOpt {
 }
 
 #[derive(StructOpt)]
+pub struct ResetOpt {
+    #[structopt(flatten)]
+    pub conn: Connection,
+    /// start address
+    #[structopt(short, long)]
+    pub loader: bool,
+}
+
+#[derive(StructOpt)]
 pub enum Opt {
     /// Flash image to serial
     Flash(FlashOpt),
@@ -101,6 +116,8 @@ pub enum Opt {
     Check(CheckOpt),
     /// Dump the whole flash to a file
     Dump(DumpOpt),
+    /// Reset chip
+    Reset(ResetOpt),
 }
 
 impl Connection {
@@ -122,6 +139,8 @@ impl Connection {
             serial,
             BaudRate::from_speed(self.initial_baud_rate),
             BaudRate::from_speed(self.baud_rate),
+            self.reset_pin.clone(),
+            self.boot_pin.clone(),
         )
     }
 }
@@ -233,6 +252,21 @@ pub fn dump(opt: DumpOpt) -> Result<(), Error> {
     log::trace!("Boot info: {:x?}", flasher.boot_info());
 
     flasher.dump_flash(opt.start..opt.end, &mut output)?;
+
+    log::info!("Success");
+
+    Ok(())
+}
+
+pub fn reset(opt: ResetOpt) -> Result<(), Error> {
+    let serial = opt.conn.open_serial()?;
+    let mut conn = connection::Connection::new(serial, opt.conn.reset_pin, opt.conn.boot_pin);
+
+    if opt.loader {
+        conn.reset_to_flash().expect("reset error")
+    } else {
+        conn.reset().expect("reset error")
+    }
 
     log::info!("Success");
 

@@ -1,4 +1,4 @@
-use blflash::{check, dump, flash, Opt};
+use blflash::{check, dump, flash, reset, Opt};
 use env_logger::Env;
 use main_error::MainError;
 
@@ -12,6 +12,7 @@ fn main(args: Opt) -> Result<(), MainError> {
         Opt::Flash(opt) => flash(opt)?,
         Opt::Check(opt) => check(opt)?,
         Opt::Dump(opt) => dump(opt)?,
+        Opt::Reset(opt) => reset(opt)?,
     };
 
     Ok(())

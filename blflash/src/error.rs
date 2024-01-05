@@ -12,6 +12,8 @@ pub enum Error {
     ConnectionFailed,
     #[error("Timeout while running command")]
     Timeout,
+    #[error("Invalid args")]
+    ArgsError,
     #[error("Invalid response header")]
     RespError,
     #[error("Packet to large for buffer")]
