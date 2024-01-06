@@ -14,7 +14,7 @@ const ROM_START: u32 = 0x23000000;
 // 16MB
 const ROM_END: u32 = 0x23000000 + 0x1000000;
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct Bl602;
 
 impl Bl602 {

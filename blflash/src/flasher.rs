@@ -2,6 +2,7 @@ use crate::chip::{Chip, ChipType};
 use crate::Error;
 use crate::{connection::Connection, elf::RomSegment};
 use indicatif::{HumanBytes, ProgressBar, ProgressStyle};
+use log::warn;
 use serial::{BaudRate, SerialPort};
 use sha2::{Digest, Sha256};
 use std::{
@@ -22,7 +23,7 @@ fn get_bar(len: u64) -> ProgressBar {
 
 pub struct Flasher {
     connection: Connection,
-    boot_info: protocol::BootInfo,
+    boot_info: protocol::BootInfoV2,
     chip: Box<dyn Chip>,
     flash_speed: BaudRate,
 }
@@ -38,14 +39,14 @@ impl Flasher {
     ) -> Result<Self, Error> {
         let mut flasher = Flasher {
             connection: Connection::new(serial, reset_pin, boot_pin),
-            boot_info: protocol::BootInfo::default(),
-            chip: chip.to_box(),
+            boot_info: protocol::BootInfoV2::default(),
+            chip: chip.clone().to_box(),
             flash_speed,
         };
         flasher.connection.set_baud(initial_speed)?;
         flasher.start_connection()?;
         flasher.connection.set_timeout(Duration::from_secs(10))?;
-        flasher.boot_info = flasher.boot_rom().get_boot_info()?;
+        flasher.boot_info = flasher.boot_rom().get_boot_info(chip)?;
 
         Ok(flasher)
     }
@@ -54,7 +55,7 @@ impl Flasher {
         self.connection
     }
 
-    pub fn boot_info(&self) -> &protocol::BootInfo {
+    pub fn boot_info(&self) -> &protocol::BootInfoV2 {
         &self.boot_info
     }
 
@@ -311,8 +312,15 @@ impl<'a> BootRom<'a> {
         Ok(size as u32)
     }
 
-    pub fn get_boot_info(&mut self) -> Result<protocol::BootInfo, Error> {
-        self.0.command(protocol::BootInfoReq {})
+    pub fn get_boot_info(&mut self, chip: ChipType) -> Result<protocol::BootInfoV2, Error> {
+        match chip {
+            // ChipType::BL602(_) => self.0.command(protocol::BootInfoReqV2 {}),
+            ChipType::BL602(_) => self
+                .0
+                .command(protocol::BootInfoReq {})
+                .map(|boot_info| boot_info.to_v2()),
+            ChipType::BL616(_) => self.0.command(protocol::BootInfoReqV2 {}),
+        }
     }
 }
 
@@ -371,6 +379,27 @@ mod protocol {
         pub otp_info: [u8; 16],
     }
     impl_command!(0x10, BootInfoReq, BootInfo);
+    impl BootInfo {
+        pub fn to_v2(self) -> BootInfoV2 {
+            BootInfoV2 {
+                len: self.len,
+                bootrom_version: self.bootrom_version,
+                otp_info: self.otp_info,
+                unknow_info: [0; 4],
+            }
+        }
+    }
+
+    #[derive(Debug, DekuWrite, Default)]
+    pub struct BootInfoReqV2 {}
+    #[derive(Debug, DekuRead, Default)]
+    pub struct BootInfoV2 {
+        pub len: u16,
+        pub bootrom_version: u32,
+        pub otp_info: [u8; 16],
+        pub unknow_info: [u8; 4], // bl616
+    }
+    impl_command!(0x10, BootInfoReqV2, BootInfoV2);
 
     #[derive(Debug, DekuWrite, Default)]
     pub struct LoadBootHeader {

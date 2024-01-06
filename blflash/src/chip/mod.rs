@@ -20,7 +20,7 @@ pub trait Chip {
     ) -> Result<Vec<RomSegment>, Error>;
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum ChipType {
     BL602(Bl602),
     BL616(Bl616),
@@ -31,7 +31,7 @@ impl FromStr for ChipType {
     type Err = Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
+        match s.to_uppercase().as_str() {
             "BL602" => Ok(ChipType::BL602(Bl602)),
             "BL616" => Ok(ChipType::BL616(Bl616)),
             _ => Ok(ChipType::BL602(Bl602)),
