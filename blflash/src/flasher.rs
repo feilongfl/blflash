@@ -1,4 +1,4 @@
-use crate::chip::Chip;
+use crate::chip::{Chip, ChipType};
 use crate::Error;
 use crate::{connection::Connection, elf::RomSegment};
 use indicatif::{HumanBytes, ProgressBar, ProgressStyle};
@@ -29,7 +29,7 @@ pub struct Flasher {
 
 impl Flasher {
     pub fn connect(
-        chip: impl Chip + 'static,
+        chip: ChipType,
         serial: impl SerialPort + 'static,
         initial_speed: BaudRate,
         flash_speed: BaudRate,
@@ -39,7 +39,7 @@ impl Flasher {
         let mut flasher = Flasher {
             connection: Connection::new(serial, reset_pin, boot_pin),
             boot_info: protocol::BootInfo::default(),
-            chip: Box::new(chip),
+            chip: chip.to_box(),
             flash_speed,
         };
         flasher.connection.set_baud(initial_speed)?;

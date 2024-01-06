@@ -43,7 +43,7 @@ impl<'a> FirmwareImage<'a> {
                 Some(CodeSegment { addr, data, size })
             })
     }
-    pub fn to_flash_bin(&self, chip: &dyn Chip) -> Vec<u8> {
+    pub fn to_flash_bin(&self, chip: &Box<dyn Chip>) -> Vec<u8> {
         let segs = self
             .segments()
             .filter_map(|segment| chip.get_flash_segment(segment))

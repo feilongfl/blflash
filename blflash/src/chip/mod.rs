@@ -20,22 +20,32 @@ pub trait Chip {
     ) -> Result<Vec<RomSegment>, Error>;
 }
 
-pub enum ChipName {
+#[derive(Clone)]
+pub enum ChipType {
     BL602(Bl602),
     BL616(Bl616),
 }
 
 // Implement parsing for ChipName
-impl FromStr for ChipName {
+impl FromStr for ChipType {
     type Err = Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            "BL602" => Ok(ChipName::BL602(Bl602)),
-            "BL616" => Ok(ChipName::BL616(Bl616)),
-            _ => Ok(ChipName::BL602(Bl602)),
+            "BL602" => Ok(ChipType::BL602(Bl602)),
+            "BL616" => Ok(ChipType::BL616(Bl616)),
+            _ => Ok(ChipType::BL602(Bl602)),
             // use bl602 as default, no errors
             // _ => Err(Error),
+        }
+    }
+}
+
+impl ChipType {
+    pub fn to_box(self) -> Box<dyn Chip> {
+        match self {
+            ChipType::BL602(inst) => Box::new(inst),
+            ChipType::BL616(inst) => Box::new(inst),
         }
     }
 }

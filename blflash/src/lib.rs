@@ -9,10 +9,7 @@ pub use error::{Error, RomError};
 pub use flasher::Flasher;
 
 use crate::{
-    chip::{
-        bl602::{self, Bl602},
-        Chip, ChipName,
-    },
+    chip::{Chip, ChipType},
     elf::{FirmwareImage, RomSegment},
     image::BootHeaderCfgFile,
 };
@@ -135,10 +132,10 @@ impl Connection {
         })?;
         Ok(serial)
     }
-    pub fn create_flasher(&self, chip: impl Chip + 'static) -> Result<Flasher, Error> {
+    pub fn create_flasher(&self) -> Result<Flasher, Error> {
         let serial = self.open_serial()?;
         Flasher::connect(
-            chip,
+            self.chip.clone(),
             serial,
             BaudRate::from_speed(self.initial_baud_rate),
             BaudRate::from_speed(self.baud_rate),
@@ -151,23 +148,23 @@ impl Connection {
 impl Boot2Opt {
     pub fn with_boot2<'a>(
         self,
-        chip: &'a dyn Chip,
+        chip: &'a Box<dyn Chip>,
         image: &[u8],
     ) -> Result<Vec<RomSegment<'a>>, Error> {
         let partition_cfg = self
             .partition_cfg
             .map(read)
-            .unwrap_or_else(|| Ok(bl602::DEFAULT_PARTITION_CFG.to_vec()))?;
+            .unwrap_or_else(|| Ok(chip::bl602::DEFAULT_PARTITION_CFG.to_vec()))?;
         let boot_header_cfg = self
             .boot_header_cfg
             .map(read)
-            .unwrap_or_else(|| Ok(bl602::DEFAULT_BOOTHEADER_CFG.to_vec()))?;
+            .unwrap_or_else(|| Ok(chip::bl602::DEFAULT_BOOTHEADER_CFG.to_vec()))?;
         let partition_cfg = toml::from_slice(&partition_cfg)?;
         let BootHeaderCfgFile { boot_header_cfg } = toml::from_slice(&boot_header_cfg)?;
         let ro_params = self
             .dtb
             .map(read)
-            .unwrap_or_else(|| Ok(bl602::RO_PARAMS.to_vec()))?;
+            .unwrap_or_else(|| Ok(chip::bl602::RO_PARAMS.to_vec()))?;
 
         let segments = chip.with_boot2(partition_cfg, boot_header_cfg, ro_params, image)?;
 
@@ -175,13 +172,13 @@ impl Boot2Opt {
     }
     pub fn make_segment<'a>(
         self,
-        _chip: &'a dyn Chip,
+        _chip: &'a Box<dyn Chip>,
         image: Vec<u8>,
     ) -> Result<RomSegment<'a>, Error> {
         let boot_header_cfg = self
             .boot_header_cfg
             .map(read)
-            .unwrap_or_else(|| Ok(bl602::DEFAULT_BOOTHEADER_CFG.to_vec()))?;
+            .unwrap_or_else(|| Ok(chip::bl602::DEFAULT_BOOTHEADER_CFG.to_vec()))?;
         let BootHeaderCfgFile {
             mut boot_header_cfg,
         } = toml::from_slice(&boot_header_cfg)?;
@@ -191,7 +188,7 @@ impl Boot2Opt {
     }
     pub fn get_segments<'a>(
         self,
-        chip: &'a dyn Chip,
+        chip: &'a Box<dyn Chip>,
         image: Vec<u8>,
     ) -> Result<Vec<RomSegment<'a>>, Error> {
         Ok(if self.without_boot2 {
@@ -202,7 +199,7 @@ impl Boot2Opt {
     }
 }
 
-pub fn read_image<'a>(chip: &dyn Chip, image: &'a [u8]) -> Result<Cow<'a, [u8]>, Error> {
+pub fn read_image<'a>(chip: &Box<dyn Chip>, image: &'a [u8]) -> Result<Cow<'a, [u8]>, Error> {
     Ok(if image[0..4] == [0x7f, 0x45, 0x4c, 0x46] {
         log::trace!("Detect ELF");
         // ELF
@@ -215,11 +212,11 @@ pub fn read_image<'a>(chip: &dyn Chip, image: &'a [u8]) -> Result<Cow<'a, [u8]>,
 }
 
 pub fn flash(opt: FlashOpt) -> Result<(), Error> {
-    let chip = Bl602;
+    let chip = opt.conn.chip.clone().to_box();
     let image = read(&opt.image)?;
     let image = read_image(&chip, &image)?;
 
-    let mut flasher = opt.conn.create_flasher(chip)?;
+    let mut flasher = opt.conn.create_flasher()?;
     log::info!("Bootrom version: {}", flasher.boot_info().bootrom_version);
     log::trace!("Boot info: {:x?}", flasher.boot_info());
 
@@ -233,11 +230,11 @@ pub fn flash(opt: FlashOpt) -> Result<(), Error> {
 }
 
 pub fn check(opt: CheckOpt) -> Result<(), Error> {
-    let chip = Bl602;
+    let chip = opt.conn.chip.clone().to_box();
     let image = read(&opt.image)?;
     let image = read_image(&chip, &image)?;
 
-    let mut flasher = opt.conn.create_flasher(Bl602)?;
+    let mut flasher = opt.conn.create_flasher()?;
     log::info!("Bootrom version: {}", flasher.boot_info().bootrom_version);
     log::trace!("Boot info: {:x?}", flasher.boot_info());
 
@@ -249,7 +246,7 @@ pub fn check(opt: CheckOpt) -> Result<(), Error> {
 
 pub fn dump(opt: DumpOpt) -> Result<(), Error> {
     let mut output = File::create(opt.output)?;
-    let mut flasher = opt.conn.create_flasher(Bl602)?;
+    let mut flasher = opt.conn.create_flasher()?;
 
     log::info!("Bootrom version: {}", flasher.boot_info().bootrom_version);
     log::trace!("Boot info: {:x?}", flasher.boot_info());
